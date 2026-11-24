@@ -1,0 +1,11 @@
+const groups = [
+ ['Daydream', 'Soft sounds for slow afternoons.', 'Calm', 'rose', '#eec1d5', [ ['Show You (Truck Song)','Esme Emerson'],['Anything at all','julip'],['The Field','After'],['300 dreams','After'],['Lasso The Moon','Ashe'],['Endless Sundays','Liang Lawrence'],['A Day Off In Margaritaville','Liang Lawrence'],['angel wings','Madison Beer'],['Say That You Will Wait For Me','HONNE, Liang Lawrence'] ]],
+ ['Blue Hour', 'A space for quiet reflection.', 'Sad', 'blue', '#c6d8ef', [ ['traces','TYLER LEWIS'],['Last Star','James Ivy'],['Rain','Cosette'],['Snowburn','After'],['Leave Me There','Liang Lawrence'],['unposted letters','Liang Lawrence'],['the pilot','Liang Lawrence'],['growing','Liang Lawrence'],['bad enough','Madison Beer'],['expectations (feat. Chappell Roan)','Olivia Rodrigo, Chappell Roan'] ]],
+ ['Euphoria', 'A little louder, a little brighter.', 'Energetic', 'bubblegum', '#f4a8d2', [ ['be original','TYLER LEWIS'],['here we go again!','Juliet Ivy'],['Glitter','Eli'],['YOLO (West\'s Song)','sicknote, August James'],['AMERICAN GIRL','Tiffany Day'],['Leak It','FLO'],['Hot & talking','Say Now'],['PRIMADONNA','ELIO'],['CHARGER (ft. Charli XCX)','ELIO, Charli xcx'],['make you mine','Madison Beer'] ]],
+ ['Rewind', 'Somewhere closer to yesterday.', 'Nostalgic', 'teddy', '#e5d0ee', [ ['Saturday - sicknote Version','sicknote, julip'],['route 74','fliss'],["It's You",'VALORANT, Karencici'],['Outbound','After'],['4getu','sicknote'],['Back To U (Theme From "sicknote")','sicknote'],['First/Last','sicknote'],['love for you','LOVELI LORI, ovg!'],['(not) a love song','Liang Lawrence'] ]]
+];
+export const worlds = groups.map(([name,description,mood,art,color,items],i)=>({name,description,mood,art,color,id:i+1,tracks:items.map(([song,artist],j)=>({id:`${i+1}-${j+1}`,song,artist,world:name,mood,art:[art,'garden','city','joy','rose','blue','bubblegum','teddy','bratz'][(j+i)%9]}))}));
+export const tracks=worlds.flatMap(w=>w.tracks);
+export const featured=['be original','Anything at all','traces','here we go again!','Saturday - sicknote Version','The Field'].map(s=>tracks.find(t=>t.song===s));
+export const playlist='54RgNONrO5wlwxCcwWfnIh';
+export const spotifySearch=t=>`https://open.spotify.com/search/${encodeURIComponent(t.song+' '+t.artist)}`;

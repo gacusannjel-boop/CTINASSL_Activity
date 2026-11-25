@@ -1,0 +1,115 @@
+.track-details {
+  width: min(720px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100svh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  color: var(--ink);
+  background: radial-gradient(ellipse at 12% 30%, #7d55756b, transparent 72%), #261d2cdd;
+  box-shadow: 0 24px 72px #1a111e80;
+  overflow: auto;
+}
+
+.track-details::backdrop {
+  background: #17121b80;
+  backdrop-filter: blur(4px);
+}
+
+.track-details-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(130px, 2fr) minmax(0, 3fr);
+  align-items: center;
+  gap: clamp(16px, 4vw, 30px);
+  padding: 42px clamp(24px, 4vw, 36px);
+}
+
+.track-details .track-details-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.track-details-art {
+  width: 100%;
+  filter: drop-shadow(0 12px 18px #170f1b8c);
+}
+
+.track-details-content h2 {
+  margin: 10px 0 6px;
+  font-size: clamp(32px, 5vw, 58px);
+  overflow-wrap: anywhere;
+}
+
+.track-details-content p {
+  font-size: 15px;
+}
+
+.track-details-metadata {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  width: fit-content;
+  gap: 8px 14px;
+  margin: 23px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.track-details-metadata dt {
+  align-self: baseline;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.track-details-metadata dd {
+  margin: 0;
+}
+
+.track-details-metadata a {
+  text-decoration-color: #f5cedf7a;
+  text-underline-offset: 3px;
+}
+
+.track-details-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 21px;
+}
+
+.track-details-actions .plain {
+  text-decoration: none;
+}
+
+.track-details .track-details-journal {
+  margin-top: 5px;
+  padding-inline: 0;
+}
+
+.track-details-copy-error {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .track-details-card {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .track-details-art { width: min(46vw, 155px); }
+  .track-details-metadata { margin-inline: auto; }
+  .track-details-actions { justify-content: center; }
+}

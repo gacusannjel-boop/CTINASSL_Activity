@@ -5,7 +5,8 @@ Sonara is a classroom project for a small music-curation team. It has 80 songs a
 ## How the app works
 
 - [`client/src/tracks.js`](client/src/tracks.js) lists the tracks, groups them into Worlds, and connects them to Spotify.
-- [`client/src/JournalPages.jsx`](client/src/JournalPages.jsx) contains the React form and Listening History. The form sends the entry to Express when you save in MongoDB mode.
+- [`client/src/JournalPages.jsx`](client/src/JournalPages.jsx) contains the React form and Listening History. The form sends the entry to Express when you save.
+- [`server/auth.js`](server/auth.js) handles registration, login, logout, and session lookup. MongoDB stores salted password hashes and expiring sessions.
 - [`server/index.js`](server/index.js) validates the entry and reads or writes it in MongoDB. The collection is called `listening_entries`. Each document has an ID, song, artist, date, moods, and an optional reflection.
 
 ## Run the MERN demo in VS Code
@@ -22,11 +23,7 @@ npm ci
 npm start
 ```
 
-Create `client/.env.local` with this line to use MongoDB for the journal.
-
-```dotenv
-VITE_JOURNAL_MODE=mongodb
-```
+Use `npm run dev` in the server directory to restart Express automatically when code changes.
 
 Install the client dependencies, start Vite in the second terminal, and open the URL it prints.
 
@@ -36,18 +33,21 @@ npm ci
 npm run dev
 ```
 
-The **Storage · MongoDB** label in Listening History confirms the database loaded. With no `VITE_JOURNAL_MODE` setting, the app uses browser storage for an offline demo. For the activity, use MongoDB mode. Vite forwards `/api` requests to Express on port 5050.
+Vite forwards `/api` requests to Express on port 5050. If you change the server port, set `SONARA_API_PORT` to match when starting Vite. Music browsing is public. Register or log in to use the journal. Entries saved before accounts were introduced remain in storage without an owner and are not shown in signed-in accounts.
 
 ## Test Journal CRUD
 
-Use a fictional entry for the demo. The Journal accepts today or a future date in Manila time. Once saved, the entry keeps its original date, moods, and reflection. The Favorite button updates its favorite status.
+Use a fictional entry for the demo. The Journal accepts today or a future date in Manila time. An existing entry can keep its original date even after that date passes. Sign in and use a new fictional entry to demonstrate each operation.
 
 | Operation | What to try in Sonara | Express request |
 | --- | --- | --- |
 | Create | Fill in Journal and save the entry | `POST /api/entries` → 201 |
 | Read | Refresh Listening History and confirm the entry is still there | `GET /api/entries` → 200 |
-| Update | Toggle Favorite on the saved entry | `PATCH /api/entries/:id` → 200 |
+| Update | Edit the song, artist, date, moods, or reflection | `PUT /api/entries/:id` → 200 |
+| Favorite | Toggle Favorite on the saved entry | `PATCH /api/entries/:id` → 200 |
 | Delete | Delete the test entry and confirm it disappears | `DELETE /api/entries/:id` → 200 |
+
+Import [Sonara Journal API](server/Sonara.postman_collection.json) into Postman and run the requests in order with the cookie jar enabled. The collection registers a demo account, logs in, tests CRUD and Favorite, then verifies that logout removes journal access.
 
 Run the client checks from the `client` directory.
 

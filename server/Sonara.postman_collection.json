@@ -1,0 +1,314 @@
+{
+  "info": {
+    "name": "Sonara Journal API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run in order with the Postman cookie jar enabled. Registration creates a new fictional account. Requests use the same host to carry its session cookie."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5050"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": "DemoPassword123!"
+    },
+    {
+      "key": "journalDate",
+      "value": ""
+    },
+    {
+      "key": "entryId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Register demo account",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/register",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('email', `demo-${Date.now()}@example.test`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 201', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Log in",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Check current account",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Session belongs to demo account', () => pm.expect(pm.response.json().user.email).to.equal(pm.collectionVariables.get('email')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create listening entry",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/entries",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"song\": \"Rain\",\n  \"artist\": \"Cosette\",\n  \"date\": \"{{journalDate}}\",\n  \"mood\": \"Calm\",\n  \"afterMood\": \"Happy\",\n  \"note\": \"Fictional test entry for Sonara.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const parts = new Intl.DateTimeFormat('en-CA', {",
+              "  timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',",
+              "}).formatToParts(new Date());",
+              "const date = Object.fromEntries(parts.map(part => [part.type, part.value]));",
+              "pm.collectionVariables.set('journalDate', `${date.year}-${date.month}-${date.day}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 201', () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) pm.collectionVariables.set('entryId', pm.response.json()._id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Read my journal",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/entries"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('List contains created entry', () => pm.expect(pm.response.json().some(entry => entry._id === pm.collectionVariables.get('entryId'))).to.equal(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Edit listening entry",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/entries/{{entryId}}",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"song\": \"The Field\",\n  \"artist\": \"After\",\n  \"date\": \"{{journalDate}}\",\n  \"mood\": \"Nostalgic\",\n  \"afterMood\": \"Calm\",\n  \"note\": \"Updated fictional reflection.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Edited details returned', () => pm.expect(pm.response.json().song).to.equal('The Field'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Favorite listening entry",
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/api/entries/{{entryId}}",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"favorite\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Favorite changed', () => pm.expect(pm.response.json().favorite).to.equal(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delete listening entry",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/entries/{{entryId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Entry deleted', () => pm.expect(pm.response.json().deleted).to.equal(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Log out",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/logout"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verify journal requires login",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/entries"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Returns 401', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

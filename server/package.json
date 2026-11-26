@@ -2,7 +2,8 @@
   "name": "sonara-server",
   "version": "1.0.0",
   "scripts": {
-    "start": "node --env-file-if-exists=.env index.js"
+    "start": "node --env-file-if-exists=.env index.js",
+    "dev": "node --watch --env-file-if-exists=.env index.js"
   },
   "type": "module",
   "dependencies": {

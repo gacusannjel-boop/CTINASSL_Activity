@@ -5,7 +5,7 @@ const moods = ['Calm', 'Happy', 'Sad', 'Energetic', 'Nostalgic', 'Stressed'];
 const journalDiscs = featured.slice(0, 2);
 
 export function JournalPage({
-  form, setForm, minimumDate, canSave, onSave, onCancel, onChooseTrack,
+  form, setForm, editing, minimumDate, canSave, onSave, onCancel, onChooseTrack,
 }) {
   function updateField(event) {
     const { name, value } = event.target;
@@ -16,7 +16,7 @@ export function JournalPage({
   return (
     <section className="section subpage">
       <div className="eyebrow">02 / LISTENING JOURNAL</div>
-      <h2>A little moment for you.</h2>
+      <h2>{editing ? "Edit listening entry." : "A little moment for you."}</h2>
       <p>Write a listening entry and notice how your mood changes.</p>
       <div className="journal-layout">
         <form className="journal" onSubmit={onSave}>
@@ -69,7 +69,7 @@ export function JournalPage({
           </label>
           <div className="actions">
             <button type="submit" className="primary" disabled={!canSave}>
-              Save entry ♡
+              {editing ? "Save changes" : "Save entry ♡"}
             </button>
             <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
           </div>
@@ -85,7 +85,7 @@ export function JournalPage({
 }
 
 export function ListeningHistory({
-  entries, ready, busy, loadingError, usesMongo, onNewEntry, onToggleFavorite, onDelete,
+  entries, ready, busy, loadingError, onNewEntry, onToggleFavorite, onEdit, onDelete,
 }) {
   const moodCount = new Set(entries.map(entry => entry.mood)).size;
   let entryList;
@@ -118,6 +118,9 @@ export function ListeningHistory({
           >
             <span aria-hidden="true">{entry.favorite === true ? '★' : '☆'}</span> Favorite
           </button>
+          <button className="secondary" disabled={busy} onClick={() => onEdit(entry)}>
+            Edit <small className="journal-method">PUT Journal</small>
+          </button>
           <button className="secondary danger" disabled={busy} onClick={() => onDelete(entry._id)}>Delete</button>
         </div>
       </article>
@@ -143,7 +146,7 @@ export function ListeningHistory({
             <small>MOODS RECORDED</small>
             <strong>{moodCount}</strong>
           </div>
-          {usesMongo && <div><small>STORAGE</small><strong>MongoDB</strong></div>}
+          <div><small>STORAGE</small><strong>MongoDB</strong></div>
         </div>
       )}
       <div className="entries">{entryList}</div>

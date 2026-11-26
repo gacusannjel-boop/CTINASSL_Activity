@@ -481,3 +481,11 @@ main{position:relative;z-index:1}h1,h2,h3,p{margin:0}h2{font:normal clamp(38px,6
   text-decoration: none;
 }
 .bottom-player .playback-fallback { line-height: 1.4; }
+
+.journal-method {
+  margin-inline-start: 0.35em;
+  font-size: 0.7em;
+  letter-spacing: normal;
+  opacity: 0.8;
+  white-space: nowrap;
+}

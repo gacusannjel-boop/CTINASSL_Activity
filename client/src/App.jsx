@@ -1,3 +1,4 @@
+import AuthPage from './AuthPage.jsx';
 import { useCallback, useEffect, useLayoutEffect, useState, useMemo, useRef } from 'react';
 import Lenis from 'lenis';
 import 'lenis/dist/lenis.css';
@@ -219,9 +220,7 @@ function createJournalForm() {
   return { song: '', artist: '', mood: 'Calm', afterMood: 'Calm', note: '', date: todayInManila() };
 }
 
-const journalKey = 'sonara-mood-entries';
 const trackLinksKey = 'sonara-track-links';
-const usesMongo = import.meta.env.VITE_JOURNAL_MODE === 'mongodb';
 const navigationKey = 'sonara-navigation';
 const pages = ['Home', 'Discover', 'Featured', 'Journal', 'Entries'];
 const initialNavigation = { page: 'Home', world: 'All', query: '' };
@@ -237,7 +236,7 @@ const originalPlaylistOrder = [
 function readNavigation() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(navigationKey));
-    if (pages.includes(saved?.page)) {
+    if ([...pages, 'Login', 'Register'].includes(saved?.page)) {
       return {
         page: saved.page,
         world: worlds.some(world => world.name === saved.world) ? saved.world : 'All',
@@ -248,15 +247,6 @@ function readNavigation() {
     // Use the home page if this browser cannot restore the session.
   }
   return initialNavigation;
-}
-
-function readLocalJournalEntries() {
-  try {
-    const entries = JSON.parse(localStorage.getItem(journalKey) || '[]');
-    return Array.isArray(entries) ? entries : [];
-  } catch {
-    return [];
-  }
 }
 
 function readTrackLinks() {
@@ -272,16 +262,23 @@ function extractSpotifyTrackIds(value) {
   return Array.from(value.matchAll(trackLink), match => match[1]);
 }
 
-async function journalRequest({ method = 'GET', id, body, signal } = {}) {
-  const path = id ? `/api/entries/${encodeURIComponent(id)}` : '/api/entries';
+async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   const response = await fetch(path, {
     method,
     signal,
     ...(body && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   });
   const data = await response.json().catch(() => null);
-  if (!response.ok || !data) throw new Error(data?.error || 'The journal server couldn’t complete the request.');
+  if (!response.ok || !data) {
+    const error = new Error(data?.error || 'Sonara couldn’t complete the request.');
+    error.status = response.status;
+    throw error;
+  }
   return data;
+}
+
+function journalRequest({ id, ...options } = {}) {
+  return apiRequest(id ? `/api/entries/${encodeURIComponent(id)}` : '/api/entries', options);
 }
 
 export default function App(){
@@ -431,6 +428,7 @@ export default function App(){
   }, []);
   function journalTrack(track) {
     setPlayerOpen(false);
+    setEditing(null);
     setForm({
       ...createJournalForm(),
       song: track.song,
@@ -454,11 +452,16 @@ export default function App(){
     window.addEventListener('keydown', resetOnEscape);
     return () => window.removeEventListener('keydown', resetOnEscape);
   }, [detailsTrack]);
-  const [entries, setEntries] = useState(() => usesMongo ? [] : readLocalJournalEntries());
+  const [user, setUser] = useState(undefined);
+  const [authError, setAuthError] = useState('');
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [registeringForJournal, setRegisteringForJournal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [entries, setEntries] = useState([]);
   const [form, setForm] = useState(createJournalForm);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [journalReady, setJournalReady] = useState(!usesMongo);
+  const [journalReady, setJournalReady] = useState(false);
   const [journalLoadError, setJournalLoadError] = useState('');
   const [journalLoadAttempt, setJournalLoadAttempt] = useState(0);
   const [journalBusy, setJournalBusy] = useState(false);
@@ -486,38 +489,62 @@ export default function App(){
     };
   }, [page]);
   useEffect(() => {
-    if (usesMongo) return;
-    function syncEntries(event) {
-      if (event.storageArea === localStorage && (event.key === journalKey || event.key === null)) {
-        setEntries(readLocalJournalEntries());
-      }
-    }
-    window.addEventListener('storage', syncEntries);
-    return () => window.removeEventListener('storage', syncEntries);
+    const request = new AbortController();
+    apiRequest('/api/auth/me', { signal: request.signal })
+      .then(({ user }) => { if (!request.signal.aborted) setUser(user); })
+      .catch(() => { if (!request.signal.aborted) setUser(null); });
+    return () => request.abort();
   }, []);
+
   useEffect(() => {
-    if (!journalPage || journalReady) return;
+    if (!user || !journalPage || journalReady) return;
     const request = new AbortController();
     journalRequest({ signal: request.signal }).then(data => {
+      if (request.signal.aborted) return;
       if (!Array.isArray(data)) throw new Error('The journal server returned an invalid response.');
       setEntries(data);
       setJournalReady(true);
-    }).catch(() => {
-      if (!request.signal.aborted) setJournalLoadError('Couldn’t connect to the journal database.');
+    }).catch(failure => {
+      if (request.signal.aborted) return;
+      if (failure.status === 401) setUser(null);
+      else setJournalLoadError('Couldn’t connect to the journal database.');
     });
     return () => request.abort();
-  }, [journalPage, journalReady, journalLoadAttempt]);
-  function updateLocalJournalEntries(update) {
+  }, [user, journalPage, journalReady, journalLoadAttempt]);
+
+  function clearJournal() {
+    setEntries([]);
+    setJournalReady(false);
+    setJournalLoadError('');
+    setEditing(null);
+    setForm(createJournalForm());
+  }
+
+  async function authenticate(credentials, registering) {
+    const action = registering ? 'register' : 'login';
+    const result = await apiRequest(`/api/auth/${action}`, { method: 'POST', body: credentials });
+    setUser(result.user);
+    setRegisteringForJournal(false);
+    if (!journalPage) go('Entries');
+  }
+
+  async function logout() {
+    if (journalBusy || logoutBusy) return;
+    setLogoutBusy(true);
+    setAuthError('');
     try {
-      const next = update(readLocalJournalEntries());
-      localStorage.setItem(journalKey, JSON.stringify(next));
-      setEntries(next);
-      return true;
+      await apiRequest('/api/auth/logout', { method: 'POST' });
+      clearJournal();
+      setUser(null);
+      go('Home');
     } catch {
-      setError('Couldn’t save changes in this browser.');
-      return false;
+      setAuthError('Couldn’t log out. Try again.');
+      setMenu(false);
+    } finally {
+      setLogoutBusy(false);
     }
   }
+
   function go(page, resetScroll = true, changes = {}) {
     setHoverTrack(null);
     setMenu(false);
@@ -529,88 +556,80 @@ export default function App(){
     if (resetScroll) scrollTo(0, true);
   }
   function startJournalEntry() {
+    setEditing(null);
     setForm(createJournalForm());
     go('Journal');
   }
 
+  function editJournalEntry(entry) {
+    const { _id, song, artist, date, mood, afterMood, note } = entry;
+    setEditing({ id: _id, date });
+    setForm({ song, artist, date, mood, afterMood, note: note ?? '' });
+    go('Journal');
+  }
+
+  async function changeJournal(options, update, success) {
+    if (journalBusy || logoutBusy) return;
+    setError('');
+    setMessage('');
+    setJournalBusy(true);
+    try {
+      const result = await journalRequest(options);
+      setEntries(current => update(current, result));
+      success();
+    } catch (failure) {
+      if (failure.status === 401) {
+        clearJournal();
+        setUser(null);
+      }
+      setError(failure.message);
+    } finally {
+      setJournalBusy(false);
+    }
+  }
+
   async function saveJournalEntry(event) {
     event.preventDefault();
-    if (!journalReady || journalBusy) return;
-    setError('');
+    if (!journalReady || journalBusy || logoutBusy) return;
     const values = { ...form, song: form.song.trim(), artist: form.artist.trim(), note: form.note.trim() };
     if (!values.song || !values.artist) {
       setError('Enter a song and artist.');
       return;
     }
-    const dateError = journalDateError(values.date);
+    const dateError = values.date === editing?.date ? '' : journalDateError(values.date);
     if (dateError) {
       setMinimumJournalDate(todayInManila());
       setError(dateError);
       return;
     }
-    if (usesMongo) {
-      setJournalBusy(true);
-      try {
-        const entry = await journalRequest({ method: 'POST', body: values });
-        setEntries(current => [entry, ...current]);
-      } catch (failure) {
-        setError(failure.message);
-        return;
-      } finally {
-        setJournalBusy(false);
-      }
-    } else {
-      const entry = { ...values, _id: crypto.randomUUID() };
-      if (!updateLocalJournalEntries(current => [entry, ...current])) return;
-    }
-    setForm(createJournalForm());
-    go('Entries');
-    setMessage('Listening entry saved.');
-  }
-
-  async function toggleFavorite(entry) {
-    if (journalBusy) return;
-    setError('');
-    setMessage('');
-
-    const favorite = entry.favorite !== true;
-    const updateFavorite = current => current.map(item =>
-      item._id === entry._id ? { ...item, favorite } : item
+    await changeJournal(
+      { method: editing ? 'PUT' : 'POST', id: editing?.id, body: values },
+      (current, entry) => editing ? current.map(item => item._id === entry._id ? entry : item) : [entry, ...current],
+      () => {
+        setEditing(null);
+        setForm(createJournalForm());
+        go('Entries');
+        setMessage(editing ? 'Listening entry updated.' : 'Listening entry saved.');
+      },
     );
-    if (usesMongo) {
-      setJournalBusy(true);
-      try {
-        await journalRequest({ method: 'PATCH', id: entry._id, body: { favorite } });
-        setEntries(updateFavorite);
-      } catch (failure) {
-        setError(failure.message);
-        return;
-      } finally {
-        setJournalBusy(false);
-      }
-    } else if (!updateLocalJournalEntries(updateFavorite)) return;
-
-    setMessage(favorite ? 'Added to favorites.' : 'Removed from favorites.');
   }
 
-  async function deleteJournalEntry(id) {
-    if (journalBusy || !window.confirm('Delete this listening entry?')) return;
-    setError('');
-    setMessage('');
-    const removeEntry = current => current.filter(entry => entry._id !== id);
-    if (usesMongo) {
-      setJournalBusy(true);
-      try {
-        await journalRequest({ method: 'DELETE', id });
-        setEntries(removeEntry);
-      } catch (failure) {
-        setError(failure.message);
-        return;
-      } finally {
-        setJournalBusy(false);
-      }
-    } else if (!updateLocalJournalEntries(removeEntry)) return;
-    setMessage('Entry deleted.');
+  function toggleFavorite(entry) {
+    const favorite = entry.favorite !== true;
+    return changeJournal(
+      { method: 'PATCH', id: entry._id, body: { favorite } },
+      (current, saved) => current.map(item => item._id === saved._id ? saved : item),
+      () => setMessage(favorite ? 'Added to favorites.' : 'Removed from favorites.'),
+    );
+  }
+
+  function deleteJournalEntry(id) {
+    if (journalBusy || logoutBusy || !window.confirm('Delete this listening entry?')) return;
+    return changeJournal(
+      { method: 'DELETE', id },
+      current => current.filter(entry => entry._id !== id),
+      () => setMessage('Entry deleted.'),
+    );
   }
   const collection = useMemo(() => world === 'All' ? tracks : tracks.filter(track => track.world === world), [world]);
   const results = useMemo(() => {
@@ -623,6 +642,9 @@ export default function App(){
   }, [collection, query]);
   const galleryTitle = query ? 'Search results' : activeWorld?.name || 'All worlds';
   const trackCount = results?.length ?? collection.length;
+  const authPage = page === 'Login' || page === 'Register';
+  const registering = page === 'Register' || (journalPage && registeringForJournal);
+  const showAuth = authPage || (journalPage && user === null);
   return <div className={motion?"site":"site quiet-motion"} style={{'--flourish':`url(${flourish})`,'--sky-photo':`url(${sky})`}}><Flourishes/>
     {opening && <Opening motion={motion} onComplete={() => setOpening(false)}/>}
     <div className="site-content" inert={opening ? true : undefined}>
@@ -631,7 +653,14 @@ export default function App(){
       {pages.map(item =>
         <button key={item} onClick={() => navigate(item)}>{item === 'Discover' ? 'Worlds' : item === 'Entries' ? 'Listening history' : item}</button>
       )}
+      {user
+        ? <button disabled={journalBusy || logoutBusy} onClick={logout}>Log out</button>
+        : <button onClick={() => go('Login')}>Log in</button>}
     </nav>}
+
+    {authError && <div role="alert" className="alert error">{authError}{' '}
+      <button onClick={() => setAuthError('')}>Dismiss</button>
+    </div>}
 
     {journalPage && journalLoadError && <div role="alert" className="alert error">{journalLoadError}{' '}
       <button onClick={() => { setJournalLoadError(''); setJournalLoadAttempt(attempt => attempt + 1); }}>Retry</button>
@@ -690,26 +719,32 @@ export default function App(){
         </div>
       </section>
     )}
-    {page === 'Journal' && (
+    {journalPage && user === undefined && <section className="section subpage"><p role="status">Checking session…</p></section>}
+    {showAuth && <AuthPage key={registering ? 'register' : 'login'} registering={registering}
+      onSubmit={credentials => authenticate(credentials, registering)}
+      onSwitch={() => journalPage ? setRegisteringForJournal(!registering) : go(registering ? 'Login' : 'Register')}
+    />}
+    {page === 'Journal' && user && (
       <JournalPage
         form={form}
         setForm={setForm}
-        minimumDate={minimumJournalDate}
-        canSave={journalReady && !journalBusy}
+        editing={Boolean(editing)}
+        minimumDate={form.date === editing?.date && form.date < minimumJournalDate ? form.date : minimumJournalDate}
+        canSave={journalReady && !journalBusy && !logoutBusy}
         onSave={saveJournalEntry}
-        onCancel={() => go('Entries')}
+        onCancel={() => { setEditing(null); setForm(createJournalForm()); go('Entries'); }}
         onChooseTrack={choose}
       />
     )}
-    {page === 'Entries' && (
+    {page === 'Entries' && user && (
       <ListeningHistory
         entries={entries}
         ready={journalReady}
-        busy={journalBusy}
+        busy={journalBusy || logoutBusy}
         loadingError={journalLoadError}
-        usesMongo={usesMongo}
         onNewEntry={startJournalEntry}
         onToggleFavorite={toggleFavorite}
+        onEdit={editJournalEntry}
         onDelete={deleteJournalEntry}
       />
     )}
